@@ -7,6 +7,16 @@ import type { RetailerApiClient } from '../client.js';
 interface LookupProductArgs {
   identifier?: unknown;
   identifier_type?: unknown;
+  include_cross_retailer?: unknown;
+}
+
+interface CrossRetailerCell {
+  retailer: string;
+  status: 'ok' | 'indexing' | 'stale' | 'not_found' | 'blocked' | 'error';
+  price?: number;
+  url?: string;
+  in_stock?: boolean;
+  fetched_at?: string;
 }
 
 interface UpstreamProduct {
@@ -23,13 +33,14 @@ interface UpstreamProduct {
   offers?: unknown[];
   current_offers?: unknown[];
   num_offers?: number;
+  cross_retailer?: CrossRetailerCell[];
   [k: string]: unknown;
 }
 
 export const lookupProduct: ToolDefinition = {
   name: 'lookup_product',
   description:
-    'Look up a Walmart product by UPC, EAN, ISBN, or Walmart item_id. Returns title, brand, primary image, current price, number of offers, item_id, and walmart_url. Use this as the entry point when the user gives you any product identifier.',
+    'Look up a product by UPC, EAN, ISBN, or Walmart item_id. Returns title, brand, primary image, current Walmart price, number of offers, item_id, walmart_url. Optionally returns cross-retailer pricing (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot) when include_cross_retailer=true. Cross-retailer cells may be marked status="indexing" on first lookup; subsequent calls (after a few seconds) typically return populated data.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -44,6 +55,11 @@ export const lookupProduct: ToolDefinition = {
         description:
           'Optional type hint. If omitted, the server auto-detects. Set explicitly when the input could be ambiguous (e.g. a 12-digit number that is both a valid UPC and a valid item_id).',
       },
+      include_cross_retailer: {
+        type: 'boolean',
+        description:
+          'Include current pricing from non-Walmart retailers (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot). Returns each retailer\'s status: "ok" (data current), "stale" (data older than retailer-specific TTL), "indexing" (no data yet — first request triggers a background fetch), "not_found" (retailer doesn\'t carry this product). Default: false.',
+      },
     },
     required: ['identifier'],
     additionalProperties: false,
@@ -55,18 +71,25 @@ export const lookupProduct: ToolDefinition = {
     }
     const id = args.identifier.trim();
     const idType = typeof args?.identifier_type === 'string' ? args.identifier_type : undefined;
+    const includeCrossRetailer = args?.include_cross_retailer === true;
 
     const data = await client.get<UpstreamProduct>(`/products/${encodeURIComponent(id)}`, {
       format: idType,
       include_history: 'false',
       include_stats: 'false',
+      include_cross_retailer: includeCrossRetailer ? 'true' : undefined,
     });
 
-    return summarizeProduct(data, id, client);
+    return summarizeProduct(data, id, client, includeCrossRetailer);
   },
 };
 
-function summarizeProduct(d: UpstreamProduct, queriedId: string, client: RetailerApiClient): {
+function summarizeProduct(
+  d: UpstreamProduct,
+  queriedId: string,
+  client: RetailerApiClient,
+  includeCrossRetailer: boolean,
+): {
   item_id: string | undefined;
   title: string | undefined;
   brand: string | undefined;
@@ -76,6 +99,7 @@ function summarizeProduct(d: UpstreamProduct, queriedId: string, client: Retaile
   offers_count: number;
   walmart_url: string | undefined;
   queried_identifier: string;
+  cross_retailer?: CrossRetailerCell[];
 } {
   void client; // reserved — may use for follow-up calls in future
   const item_id =
@@ -115,6 +139,7 @@ function summarizeProduct(d: UpstreamProduct, queriedId: string, client: Retaile
             ? `https://www.walmart.com/ip/${item_id}`
             : undefined,
     queried_identifier: queriedId,
+    cross_retailer: includeCrossRetailer && Array.isArray(d.cross_retailer) ? d.cross_retailer : undefined,
   };
 }
 
