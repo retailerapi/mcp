@@ -1,7 +1,7 @@
 {
   "name": "@retailerapi/mcp",
-  "version": "0.1.0",
-  "description": "Model Context Protocol server for retailerapi.com — exposes Walmart product data, price history, offers, sellers, reviews, and sales stats as tools for AI agents (Claude Desktop, Claude Code, Cursor).",
+  "version": "0.2.0",
+  "description": "Model Context Protocol server for retailerapi.com — exposes Walmart product data, price history, offers, sellers, and reviews as tools for AI agents (Claude Desktop, Claude Code, Cursor).",
   "license": "MIT",
   "author": "retailerapi",
   "homepage": "https://retailerapi.com",
