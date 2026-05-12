@@ -20,6 +20,7 @@ import { priceHistory } from './tools/price-history.js';
 import { getOffers } from './tools/get-offers.js';
 import { getSeller } from './tools/get-seller.js';
 import { getReviews } from './tools/get-reviews.js';
+import { PKG_NAME, PKG_VERSION } from './version.js';
 
 const TOOLS: ToolDefinition[] = [
   lookupProduct,
@@ -31,8 +32,8 @@ const TOOLS: ToolDefinition[] = [
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
-const SERVER_NAME = '@retailerapi/mcp';
-const SERVER_VERSION = '0.1.0';
+const SERVER_NAME = PKG_NAME;
+const SERVER_VERSION = PKG_VERSION;
 
 export function createServer(): Server {
   const server = new Server(

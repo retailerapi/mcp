@@ -4,8 +4,11 @@
 // can produce stable, model-friendly error messages (401 → "API key invalid",
 // 429 → "Rate limited, retry in N", etc.).
 
+import { PKG_NAME, PKG_VERSION } from './version.js';
+
 const DEFAULT_BASE_URL = 'https://api.retailerapi.com/v1';
 const KEY_DOC_URL = 'https://app.retailerapi.com/app/keys';
+const USER_AGENT = `${PKG_NAME.replace('@', '').replace('/', '-')}/${PKG_VERSION}`;
 
 export class RetailerApiError extends Error {
   constructor(
@@ -19,10 +22,15 @@ export class RetailerApiError extends Error {
   }
 }
 
+// Canonical env var name. We also accept the legacy `RETAILERAPI_API_KEY` for
+// back-compat with early-adopter configs that copied the docs before the
+// rename — anything customer-visible here must use the canonical name.
+export const ENV_VAR_NAME = 'RETAILERAPI_KEY';
+
 export class MissingApiKeyError extends Error {
   constructor() {
     super(
-      `RETAILERAPI_KEY env var is not set. Get a key at ${KEY_DOC_URL} and add it to your MCP client config.`,
+      `${ENV_VAR_NAME} env var is not set. Get a key at ${KEY_DOC_URL} and add it to your MCP client config.`,
     );
     this.name = 'MissingApiKeyError';
   }
@@ -62,7 +70,7 @@ export class RetailerApiClient {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         Accept: 'application/json',
-        'User-Agent': 'retailerapi-mcp/0.1.0',
+        'User-Agent': USER_AGENT,
       },
     });
 
@@ -71,7 +79,7 @@ export class RetailerApiClient {
     if (r.status === 401 || r.status === 403) {
       throw new RetailerApiError(
         r.status,
-        `API key invalid or unauthorized. Check RETAILERAPI_API_KEY at ${KEY_DOC_URL}.`,
+        `API key invalid or unauthorized. Check ${ENV_VAR_NAME} at ${KEY_DOC_URL}.`,
         path,
       );
     }
