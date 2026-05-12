@@ -7,8 +7,10 @@
   "homepage": "https://retailerapi.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/retailerapi/retailerapi.git",
-    "directory": "packages/mcp"
+    "url": "https://github.com/marketermatt/retailerapi-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/marketermatt/retailerapi-mcp/issues"
   },
   "keywords": [
     "mcp",

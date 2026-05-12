@@ -1,37 +1,35 @@
 // `price_history` — returns the time series of prices + stock state for a
-// Walmart item. Optional `range` trims the array client-side to keep token
-// counts reasonable (the upstream returns full history regardless).
+// Walmart item. Hits the dedicated /v1/products/{id}/history endpoint which
+// is server-side filtered by timeframe + costs less than bundling history
+// into a full product lookup.
 
 import type { ToolDefinition } from './types.js';
 
-const RANGE_DAYS: Record<string, number | null> = {
-  '7d': 7,
-  '30d': 30,
-  '90d': 90,
-  '1y': 365,
-  all: null,
-};
+type Range = '7d' | '30d' | '90d' | '1y' | 'all';
+const RANGES: Range[] = ['7d', '30d', '90d', '1y', 'all'];
 
 interface PriceHistoryArgs {
   item_id?: unknown;
   range?: unknown;
 }
 
-interface UpstreamProductWithHistory {
-  item_id?: string | number;
-  price_history?: Array<{
-    recorded_at?: string;
-    timestamp?: string;
-    price?: number | string | null;
+interface HistoryResponse {
+  identifier?: string;
+  retailer?: string;
+  timeframe?: string;
+  observations?: Array<{
+    observed_at?: string | null;
+    price?: number | null;
     in_stock?: boolean | null;
   }>;
+  stats?: Record<string, unknown>;
   [k: string]: unknown;
 }
 
 export const priceHistory: ToolDefinition = {
   name: 'price_history',
   description:
-    'Get the price history time series for a Walmart product by item_id. Returns an array of {recorded_at, price, in_stock} samples. Use the `range` parameter to limit the window (default 30d).',
+    'Get the price history time series for a Walmart product. Returns `{ identifier, retailer, timeframe, observations[], stats }`. Use the `range` parameter to limit the window (default 30d). Cheaper than chaining lookup_product with history.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -55,44 +53,22 @@ export const priceHistory: ToolDefinition = {
     if (typeof args?.item_id !== 'string' || !args.item_id.trim()) {
       throw new Error('`item_id` is required and must be a non-empty string.');
     }
-    const range = typeof args?.range === 'string' && args.range in RANGE_DAYS ? args.range : '30d';
+    const range: Range = (typeof args?.range === 'string' && (RANGES as string[]).includes(args.range))
+      ? (args.range as Range)
+      : '30d';
     const id = args.item_id.trim();
 
-    const data = await client.get<UpstreamProductWithHistory>(`/products/${encodeURIComponent(id)}`, {
-      format: 'item_id',
-      include_history: 'true',
-      include_stats: 'false',
+    const data = await client.get<HistoryResponse>(`/products/${encodeURIComponent(id)}/history`, {
+      timeframe: range,
+      retailer: 'walmart',
     });
 
-    const raw = Array.isArray(data?.price_history) ? data.price_history : [];
-    const days = RANGE_DAYS[range];
-    const cutoff =
-      days === null ? null : Date.now() - days * 24 * 60 * 60 * 1000;
-
-    const samples = raw
-      .map((row) => ({
-        recorded_at: row?.recorded_at ?? row?.timestamp ?? null,
-        price: toNumber(row?.price),
-        in_stock: typeof row?.in_stock === 'boolean' ? row.in_stock : null,
-      }))
-      .filter((row) => {
-        if (!row.recorded_at) return false;
-        if (cutoff === null) return true;
-        const t = Date.parse(row.recorded_at);
-        return Number.isFinite(t) && t >= cutoff;
-      });
-
     return {
-      item_id: id,
-      range,
-      sample_count: samples.length,
-      samples,
+      identifier: data.identifier ?? id,
+      retailer: data.retailer ?? 'walmart',
+      timeframe: data.timeframe ?? range,
+      observations: Array.isArray(data.observations) ? data.observations : [],
+      stats: data.stats ?? null,
     };
   },
 };
-
-function toNumber(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}

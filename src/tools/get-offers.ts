@@ -1,6 +1,6 @@
-// `get_offers` — list current sellers on a Walmart item. We pull the
-// product detail (which embeds current offers) and project the seller-facing
-// fields the model needs.
+// `get_offers` — list current sellers on a Walmart item. Pulls the product
+// detail (which carries the offers array post-normalize) and projects the
+// seller-facing fields the model needs.
 
 import type { ToolDefinition } from './types.js';
 
@@ -8,33 +8,26 @@ interface GetOffersArgs {
   item_id?: unknown;
 }
 
-interface UpstreamOffer {
-  seller_id?: string;
+interface NormalizedOffer {
+  seller_id?: string | null;
   seller_name?: string | null;
-  seller_display_name?: string | null;
-  current_price?: number | string | null;
-  price?: number | string | null;
-  condition_text?: string | null;
-  condition?: string | null;
-  buybox_owner?: boolean | null;
-  is_buybox?: boolean | null;
-  fulfillment_type?: string | null;
-  availability_status?: string | null;
+  price?: number | null;
+  is_buy_box?: boolean;
+  in_stock?: boolean | null;
   [k: string]: unknown;
 }
 
-interface UpstreamProductWithOffers {
+interface ProductWithOffers {
   item_id?: string | number;
-  offers?: UpstreamOffer[];
-  current_offers?: UpstreamOffer[];
-  buybox_seller_id?: string;
+  offers?: NormalizedOffer[];
+  seller_id?: string | null;
   [k: string]: unknown;
 }
 
 export const getOffers: ToolDefinition = {
   name: 'get_offers',
   description:
-    'List the current sellers on a Walmart product. Returns each offer with seller_id, seller_name, price, condition, and a buybox_owner flag. Use this to compare seller prices or find the buybox holder.',
+    'List the current sellers on a Walmart product. Returns each offer with seller_id, seller_name, price, in_stock, and an is_buy_box flag. Use to compare seller prices or find the buy-box holder.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -54,45 +47,32 @@ export const getOffers: ToolDefinition = {
     }
     const id = args.item_id.trim();
 
-    const data = await client.get<UpstreamProductWithOffers>(`/products/${encodeURIComponent(id)}`, {
+    const data = await client.get<ProductWithOffers>(`/products/${encodeURIComponent(id)}`, {
       format: 'item_id',
       include_history: 'false',
       include_stats: 'false',
+      include_offers: 'true',
     });
 
-    const raw = Array.isArray(data?.offers)
-      ? data.offers
-      : Array.isArray(data?.current_offers)
-        ? data.current_offers
-        : [];
+    const offers = Array.isArray(data?.offers) ? data.offers : [];
+    const buyBoxSellerId = typeof data?.seller_id === 'string' ? data.seller_id : null;
 
-    const buyboxSellerId = data?.buybox_seller_id ?? undefined;
-
-    const offers = raw.map((o) => ({
+    const projected = offers.map((o) => ({
       seller_id: o.seller_id ?? null,
-      seller_name: o.seller_display_name ?? o.seller_name ?? null,
-      price: toNumber(o.current_price ?? o.price),
-      condition: o.condition_text ?? o.condition ?? null,
-      fulfillment_type: o.fulfillment_type ?? null,
-      availability_status: o.availability_status ?? null,
-      buybox_owner:
-        typeof o.is_buybox === 'boolean'
-          ? o.is_buybox
-          : typeof o.buybox_owner === 'boolean'
-            ? o.buybox_owner
-            : buyboxSellerId !== undefined && o.seller_id === buyboxSellerId,
+      seller_name: o.seller_name ?? null,
+      price: typeof o.price === 'number' ? o.price : null,
+      in_stock: typeof o.in_stock === 'boolean' ? o.in_stock : null,
+      is_buy_box:
+        typeof o.is_buy_box === 'boolean'
+          ? o.is_buy_box
+          : buyBoxSellerId !== null && o.seller_id === buyBoxSellerId,
     }));
 
     return {
       item_id: id,
-      offer_count: offers.length,
-      offers,
+      offer_count: projected.length,
+      buy_box_seller_id: buyBoxSellerId,
+      offers: projected,
     };
   },
 };
-
-function toNumber(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
