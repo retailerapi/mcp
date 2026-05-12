@@ -51,7 +51,7 @@ export const getOffers: ToolDefinition = {
       format: 'item_id',
       include_history: 'false',
       include_stats: 'false',
-      include_offers: 'true',
+      include_offers_reviews: 'true',
     });
 
     const offers = Array.isArray(data?.offers) ? data.offers : [];
