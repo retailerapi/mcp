@@ -1,6 +1,6 @@
 {
   "name": "@retailerapi/mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Model Context Protocol server for retailerapi.com — unified product data across major US retailers (Walmart, Amazon, eBay, Target, Best Buy, Lowe's, Home Depot). Five tools for AI agents: lookup, price history, offers, sellers, reviews. Works with Claude Desktop, Claude Code, Cursor.",
   "license": "MIT",
   "author": "retailerapi",

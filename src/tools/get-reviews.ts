@@ -22,8 +22,30 @@ interface UpstreamReview {
   [k: string]: unknown;
 }
 
+interface ReviewSummary {
+  average_rating?: number | null;
+  total_reviews?: number | null;
+  rating_distribution?: Record<string, number> | null;
+  sentiment?: { positive?: number; neutral?: number; negative?: number };
+  verified_purchases?: number | null;
+  non_verified_purchases?: number | null;
+}
+
+interface MonthlyBucket {
+  month?: string | null;
+  total_reviews?: number;
+  average_rating?: number | null;
+  sentiment?: { positive?: number | null; neutral?: number | null; negative?: number | null };
+}
+
 interface UpstreamReviews {
+  identifier?: string;
   item_id?: string | number;
+  // Modern flat shape returned by /v1/products/{id}/reviews
+  summary?: ReviewSummary;
+  monthly_breakdown?: MonthlyBucket[];
+  top_reviews?: UpstreamReview[];
+  // Legacy fallback shape (pre-2026-05-12 envelope)
   average_rating?: number | null;
   rating?: number | null;
   total_reviews?: number | null;
@@ -78,7 +100,11 @@ export const getReviews: ToolDefinition = {
       },
     );
 
-    const reviewsRaw = Array.isArray(data?.reviews) ? data.reviews : [];
+    const reviewsRaw = Array.isArray(data?.top_reviews)
+      ? data.top_reviews
+      : Array.isArray(data?.reviews)
+        ? data.reviews
+        : [];
     const top = reviewsRaw.slice(0, TOP_N).map((r) => ({
       rating: typeof r.rating === 'number' ? r.rating : null,
       title: r.title ?? null,
@@ -90,17 +116,24 @@ export const getReviews: ToolDefinition = {
         typeof r.verified_purchase === 'boolean' ? r.verified_purchase : null,
     }));
 
+    // Read from the modern summary shape first; fall back to flat fields for
+    // pre-2026-05-12 deployments.
+    const summary = data?.summary ?? {};
     return {
       item_id: id,
       summary: {
-        average_rating: data?.average_rating ?? data?.rating ?? null,
-        total_reviews: data?.total_reviews ?? data?.review_count ?? null,
-        rating_distribution: data?.rating_distribution ?? null,
+        average_rating: summary.average_rating ?? data?.average_rating ?? data?.rating ?? null,
+        total_reviews: summary.total_reviews ?? data?.total_reviews ?? data?.review_count ?? null,
+        rating_distribution: summary.rating_distribution ?? data?.rating_distribution ?? null,
+        sentiment: summary.sentiment ?? null,
+        verified_purchases: summary.verified_purchases ?? null,
+        non_verified_purchases: summary.non_verified_purchases ?? null,
         date_range:
           startDate || endDate
             ? { start_date: startDate ?? null, end_date: endDate ?? null }
             : null,
       },
+      monthly_breakdown: Array.isArray(data?.monthly_breakdown) ? data.monthly_breakdown : null,
       top_reviews: top,
     };
   },
