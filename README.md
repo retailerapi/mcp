@@ -1,14 +1,16 @@
 # @retailerapi/mcp
 
-Model Context Protocol server for [retailerapi.com](https://retailerapi.com). Exposes Walmart product data — lookups, price history, offers, seller profiles, reviews, and sales stats — as tools your AI agent can call directly.
+Model Context Protocol server for [retailerapi.com](https://retailerapi.com) — a unified product-data API covering major US retailers. Five tools your AI agent can call directly: product lookups, price history, offers, seller profiles, and reviews.
 
 Works with **Claude Desktop**, **Claude Code**, **Cursor**, and any other MCP-compatible client over stdio.
+
+Covered retailers: Walmart (deepest catalog today), Amazon, eBay, Target, Best Buy, Lowe's, Home Depot. Set `include_cross_retailer=true` on a product lookup to fold in cross-retailer pricing from any of these.
 
 ## Quick start
 
 ### 1. Get an API key
 
-Sign in at [app.retailerapi.com](https://app.retailerapi.com) and create a key on the [API Keys](https://app.retailerapi.com/app/keys) page. Keys look like `rk_live_…`.
+Sign in at [app.retailerapi.com](https://app.retailerapi.com) and create a key on the [API Keys](https://app.retailerapi.com/app/keys) page. Keys look like `rk_live_…`. Free tier is 1,000 lookups/month — no card.
 
 ### 2. Add the server to your MCP client
 
@@ -69,49 +71,52 @@ The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). 
 
 ### `lookup_product`
 
-Resolve any identifier (UPC / EAN / ISBN / Walmart `item_id`) into a normalized product summary.
+Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. Optionally folds in cross-retailer pricing from Amazon, eBay, Target, Best Buy, Lowe's, and Home Depot.
 
 | Field             | Type     |
 | ----------------- | -------- |
 | `identifier`      | string (required) |
 | `identifier_type` | `"UPC" \| "EAN" \| "ISBN" \| "item_id"` (optional — auto-detect if omitted) |
+| `include_cross_retailer` | boolean (optional — default `false`) |
 
-**Example prompt:** "Look up UPC 045496590161 and tell me the brand and price."
+**Example prompts:**
+- "Look up UPC 045496590161 and tell me the brand and price."
+- "Find UPC 194629116676 across every retailer you can — who has it cheapest?"
 
 ### `price_history`
 
-Time series of `{recorded_at, price, in_stock}` samples for a Walmart `item_id`.
+Time series of `{observed_at, price, in_stock}` observations for a product.
 
 | Field     | Type   |
 | --------- | ------ |
 | `item_id` | string (required) |
 | `range`   | `"7d" \| "30d" \| "90d" \| "1y" \| "all"` (default `"30d"`) |
 
-**Example prompt:** "Show me the 90-day price history for Walmart item 1689065034."
+**Example prompt:** "Show me the 90-day price history for item 1689065034."
 
 ### `get_offers`
 
-List current sellers on a Walmart product, including price, condition, fulfillment type, and which seller owns the buybox.
+List current marketplace sellers on a product, including price, in-stock state, and which seller owns the buy box.
 
 | Field     | Type   |
 | --------- | ------ |
 | `item_id` | string (required) |
 
-**Example prompt:** "Who has the buybox on item 1689065034 and what's the next-cheapest seller?"
+**Example prompt:** "Who has the buy box on item 1689065034 and what's the next-cheapest seller?"
 
 ### `get_seller`
 
-Walmart seller profile by `seller_id`: name, total listings, rating, status, location.
+Marketplace seller profile by `seller_id`: name, total active listings, rating, performance metrics.
 
 | Field       | Type   |
 | ----------- | ------ |
 | `seller_id` | string (required) |
 
-**Example prompt:** "Tell me about Walmart seller 101037778."
+**Example prompt:** "Tell me about seller F55CDC31AB754BB68FE0B39041159D63."
 
 ### `get_reviews`
 
-Review summary plus the top recent reviews for a Walmart product. Optional date range.
+Review summary plus top recent reviews for a product. Optional date range.
 
 | Field        | Type   |
 | ------------ | ------ |
@@ -120,16 +125,6 @@ Review summary plus the top recent reviews for a Walmart product. Optional date 
 | `end_date`   | `YYYY-MM-DD` (optional) |
 
 **Example prompt:** "Summarize what customers complain about in reviews of item 1689065034."
-
-### `get_sales_stats`
-
-Sales rank, primary category, estimated monthly units (and revenue when available).
-
-| Field     | Type   |
-| --------- | ------ |
-| `item_id` | string (required) |
-
-**Example prompt:** "Is Walmart item 1689065034 a fast mover? Give me the rank and estimated monthly units."
 
 ## Errors
 
