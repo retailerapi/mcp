@@ -22,7 +22,7 @@ export class RetailerApiError extends Error {
 export class MissingApiKeyError extends Error {
   constructor() {
     super(
-      `RETAILERAPI_API_KEY env var is not set. Get a key at ${KEY_DOC_URL} and add it to your MCP client config.`,
+      `RETAILERAPI_KEY env var is not set. Get a key at ${KEY_DOC_URL} and add it to your MCP client config.`,
     );
     this.name = 'MissingApiKeyError';
   }
@@ -40,7 +40,9 @@ export class RetailerApiClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: RetailerApiClientOptions = {}) {
-    const apiKey = opts.apiKey ?? process.env.RETAILERAPI_API_KEY;
+    // Accept either name. `RETAILERAPI_KEY` is the documented one; the older
+    // `RETAILERAPI_API_KEY` is preserved for back-compat with early adopters.
+    const apiKey = opts.apiKey ?? process.env.RETAILERAPI_KEY ?? process.env.RETAILERAPI_API_KEY;
     if (!apiKey) throw new MissingApiKeyError();
     this.apiKey = apiKey;
     this.baseUrl = (opts.baseUrl ?? process.env.RETAILERAPI_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, '');

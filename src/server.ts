@@ -20,7 +20,6 @@ import { priceHistory } from './tools/price-history.js';
 import { getOffers } from './tools/get-offers.js';
 import { getSeller } from './tools/get-seller.js';
 import { getReviews } from './tools/get-reviews.js';
-import { getSalesStats } from './tools/get-sales-stats.js';
 
 const TOOLS: ToolDefinition[] = [
   lookupProduct,
@@ -28,7 +27,6 @@ const TOOLS: ToolDefinition[] = [
   getOffers,
   getSeller,
   getReviews,
-  getSalesStats,
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

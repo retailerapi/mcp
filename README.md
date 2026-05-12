@@ -23,7 +23,7 @@ Edit `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/
       "command": "npx",
       "args": ["-y", "@retailerapi/mcp"],
       "env": {
-        "RETAILERAPI_API_KEY": "rk_live_your_key_here"
+        "RETAILERAPI_KEY": "rk_live_your_key_here"
       }
     }
   }
@@ -36,7 +36,7 @@ Restart Claude Desktop. The retailerapi tools will appear in the tool picker.
 
 ```bash
 claude mcp add retailerapi npx -y @retailerapi/mcp \
-  --env RETAILERAPI_API_KEY=rk_live_your_key_here
+  --env RETAILERAPI_KEY=rk_live_your_key_here
 ```
 
 #### Cursor
@@ -50,7 +50,7 @@ Add to `~/.cursor/mcp.json` (or the project-level `.cursor/mcp.json`):
       "command": "npx",
       "args": ["-y", "@retailerapi/mcp"],
       "env": {
-        "RETAILERAPI_API_KEY": "rk_live_your_key_here"
+        "RETAILERAPI_KEY": "rk_live_your_key_here"
       }
     }
   }
@@ -60,7 +60,7 @@ Add to `~/.cursor/mcp.json` (or the project-level `.cursor/mcp.json`):
 #### Generic stdio
 
 ```bash
-RETAILERAPI_API_KEY=rk_live_your_key_here npx @retailerapi/mcp
+RETAILERAPI_KEY=rk_live_your_key_here npx @retailerapi/mcp
 ```
 
 The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). Logs go to stderr.
@@ -137,17 +137,17 @@ Tool calls return structured JSON errors instead of crashing the agent:
 
 | Status   | Error code        | Meaning                                                              |
 | -------- | ----------------- | -------------------------------------------------------------------- |
-| 401, 403 | `unauthorized`    | API key invalid or missing scope. Check `RETAILERAPI_API_KEY`.       |
+| 401, 403 | `unauthorized`    | API key invalid or missing scope. Check `RETAILERAPI_KEY`.       |
 | 404      | `not_found`       | Product, seller, or item_id not found.                               |
 | 429      | `rate_limited`    | Quota or burst limit hit. Includes `retry_after_seconds`.            |
 | 5xx      | `upstream_error`  | Backend issue. Retry shortly.                                        |
-| —        | `missing_api_key` | `RETAILERAPI_API_KEY` env var not set. Pointer to docs included.     |
+| —        | `missing_api_key` | `RETAILERAPI_KEY` env var not set. Pointer to docs included.     |
 
 ## Environment
 
 | Variable               | Required | Default                          |
 | ---------------------- | -------- | -------------------------------- |
-| `RETAILERAPI_API_KEY`  | yes      | —                                |
+| `RETAILERAPI_KEY`  | yes      | —                                |
 | `RETAILERAPI_BASE_URL` | no       | `https://api.retailerapi.com/v1` |
 
 ## Develop locally
@@ -155,7 +155,7 @@ Tool calls return structured JSON errors instead of crashing the agent:
 ```bash
 pnpm install
 pnpm --filter @retailerapi/mcp build
-RETAILERAPI_API_KEY=rk_live_… node packages/mcp/dist/index.js
+RETAILERAPI_KEY=rk_live_… node packages/mcp/dist/index.js
 ```
 
 The MCP Inspector (`npx @modelcontextprotocol/inspector`) is the easiest way to exercise the tools manually.
