@@ -71,7 +71,7 @@ The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). 
 
 ### `lookup_product`
 
-Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. Optionally folds in cross-retailer pricing from Amazon, eBay, Target, Best Buy, Lowe's, and Home Depot.
+Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. Returns `retailer_links` — the list of other retailers (Amazon, eBay, Target, Best Buy, Lowe's, Home Depot) that carry the same product, with a direct URL to each — free for barcode lookups. Set `include_cross_retailer=true` to also pull live price/stock per retailer (+2 tokens).
 
 | Field             | Type     |
 | ----------------- | -------- |

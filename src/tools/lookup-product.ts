@@ -19,6 +19,12 @@ interface CrossRetailerCell {
   fetched_at?: string;
 }
 
+interface RetailerLink {
+  retailer: string;
+  url: string;
+  found_via?: string;
+}
+
 interface UpstreamProduct {
   item_id?: string | number;
   title?: string;
@@ -33,6 +39,7 @@ interface UpstreamProduct {
   offers?: unknown[];
   current_offers?: unknown[];
   num_offers?: number;
+  retailer_links?: RetailerLink[];
   cross_retailer?: CrossRetailerCell[];
   [k: string]: unknown;
 }
@@ -40,7 +47,7 @@ interface UpstreamProduct {
 export const lookupProduct: ToolDefinition = {
   name: 'lookup_product',
   description:
-    'Look up a product by UPC, EAN, ISBN, or Walmart item_id. Returns title, brand, primary image, current Walmart price, number of offers, item_id, walmart_url. Optionally returns cross-retailer pricing (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot) when include_cross_retailer=true. Cross-retailer cells may be marked status="indexing" on first lookup; subsequent calls (after a few seconds) typically return populated data.',
+    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or Walmart item_id. Returns title, brand, primary image, current Walmart price, number of offers, item_id, walmart_url, AND retailer_links — the list of other retailers (Amazon, eBay, Target, Best Buy, Lowe\'s, Home Depot) that carry this product, with a direct URL to each. Discovery is free; set include_cross_retailer=true to also pull live price/stock per retailer (+2 tokens). Cells may be marked status="indexing" on first lookup; subsequent calls (after a few seconds) typically return populated data.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -99,6 +106,7 @@ function summarizeProduct(
   offers_count: number;
   walmart_url: string | undefined;
   queried_identifier: string;
+  retailer_links?: RetailerLink[];
   cross_retailer?: CrossRetailerCell[];
 } {
   void client; // reserved — may use for follow-up calls in future
@@ -139,6 +147,7 @@ function summarizeProduct(
             ? `https://www.walmart.com/ip/${item_id}`
             : undefined,
     queried_identifier: queriedId,
+    retailer_links: Array.isArray(d.retailer_links) && d.retailer_links.length ? d.retailer_links : undefined,
     cross_retailer: includeCrossRetailer && Array.isArray(d.cross_retailer) ? d.cross_retailer : undefined,
   };
 }
