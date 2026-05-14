@@ -53,14 +53,14 @@ export const lookupProduct: ToolDefinition = {
     properties: {
       identifier: {
         type: 'string',
-        description: 'The product identifier — UPC, EAN, ISBN, or Walmart item_id.',
+        description: 'The product identifier — UPC, EAN, ISBN, GTIN, Amazon ASIN (B0XXXXXXXX), or Walmart item_id.',
         minLength: 1,
       },
       identifier_type: {
         type: 'string',
-        enum: ['UPC', 'EAN', 'ISBN', 'item_id'],
+        enum: ['UPC', 'EAN', 'ISBN', 'GTIN', 'ASIN', 'item_id'],
         description:
-          'Optional type hint. If omitted, the server auto-detects. Set explicitly when the input could be ambiguous (e.g. a 12-digit number that is both a valid UPC and a valid item_id).',
+          'Optional type hint. If omitted, the server auto-detects. Set explicitly when the input could be ambiguous (e.g. a 12-digit number that is both a valid UPC and a valid item_id). ASIN inputs route through the Amazon-first path; include_offers_reviews is silently ignored for ASIN since Amazon\'s PDP doesn\'t carry the marketplace-offers blob.',
       },
       include_cross_retailer: {
         type: 'boolean',
