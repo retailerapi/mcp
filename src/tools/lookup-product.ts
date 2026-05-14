@@ -8,6 +8,7 @@ interface LookupProductArgs {
   identifier?: unknown;
   identifier_type?: unknown;
   include_cross_retailer?: unknown;
+  retailer?: unknown;
 }
 
 interface CrossRetailerCell {
@@ -67,6 +68,12 @@ export const lookupProduct: ToolDefinition = {
         description:
           'Include current pricing from non-Walmart retailers (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot). Returns each retailer\'s status: "ok" (data current), "stale" (data older than retailer-specific TTL), "indexing" (no data yet — first request triggers a background fetch), "not_found" (retailer doesn\'t carry this product). Default: false.',
       },
+      retailer: {
+        type: 'string',
+        enum: ['walmart', 'amazon', 'ebay', 'lowes', 'target', 'bestbuy', 'homedepot'],
+        description:
+          "Force a specific retailer's data as the primary source. Omit (or pass 'walmart') for the default catalog. Walmart item_id is rejected with non-walmart retailers — use UPC, EAN, ISBN, GTIN, or ASIN. Cost: 1 token flat (no surcharge). Returns 404 retailer_unavailable if the retailer's scraper waterfall is exhausted.",
+      },
     },
     required: ['identifier'],
     additionalProperties: false,
@@ -79,12 +86,14 @@ export const lookupProduct: ToolDefinition = {
     const id = args.identifier.trim();
     const idType = typeof args?.identifier_type === 'string' ? args.identifier_type : undefined;
     const includeCrossRetailer = args?.include_cross_retailer === true;
+    const retailer = typeof args?.retailer === 'string' ? args.retailer.toLowerCase().trim() : undefined;
 
     const data = await client.get<UpstreamProduct>(`/products/${encodeURIComponent(id)}`, {
       format: idType,
       include_history: 'false',
       include_stats: 'false',
       include_cross_retailer: includeCrossRetailer ? 'true' : undefined,
+      retailer,
     });
 
     return summarizeProduct(data, id, client, includeCrossRetailer);
