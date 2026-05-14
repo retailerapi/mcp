@@ -70,9 +70,9 @@ export const lookupProduct: ToolDefinition = {
       },
       retailer: {
         type: 'string',
-        enum: ['walmart', 'amazon', 'ebay', 'lowes', 'target', 'bestbuy', 'homedepot'],
+        pattern: '^[a-z0-9]{2,30}$',
         description:
-          "Force a specific retailer's data as the primary source. Omit (or pass 'walmart') for the default catalog. Walmart item_id is rejected with non-walmart retailers — use UPC, EAN, ISBN, GTIN, or ASIN. Cost: 1 token flat (no surcharge). Returns 404 retailer_unavailable if the retailer's scraper waterfall is exhausted.",
+          "Force a specific retailer's data as the primary source. Slug format: lowercase alphanumeric only, 2-30 chars, no TLD or separators (homedepot not 'home-depot' or 'homedepot.com'). Vetted retailers (walmart, amazon, ebay, lowes, target, bestbuy, homedepot) have custom parsers; any other slug routes through a self-extending WebFetch waterfall against <slug>.com. Walmart item_id is rejected with non-walmart retailers — use UPC, EAN, ISBN, GTIN, or ASIN. Cost: 1 token flat. 404 codes: not_found (retailer doesn't carry) | retailer_unavailable (waterfall exhausted) | retailer_pending (bot-blocked, extension coming soon).",
       },
     },
     required: ['identifier'],
