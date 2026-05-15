@@ -73,6 +73,8 @@ The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). 
 
 Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. Returns `retailer_links` — the list of other retailers (Amazon, eBay, Target, Best Buy, Lowe's, Home Depot) that carry the same product, with a direct URL to each — free for barcode lookups. Set `include_cross_retailer=true` to also pull live price/stock per retailer (+2 tokens).
 
+Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field and a `data_quality_score` (0.0–1.0). A score below 1.0 means at least one retailer described a different product and was excluded from the merge; `_meta.disagreements` lists each excluded retailer's title for debugging. Safe to ignore for most uses.
+
 | Field             | Type     |
 | ----------------- | -------- |
 | `identifier`      | string (required) |
