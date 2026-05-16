@@ -79,6 +79,8 @@ To force a fresh scrape of a specific retailer (bypassing cache), call with `ret
 
 Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field (including `weight_lbs_source` and `dimensions_source` — useful when one retailer's catalog is missing physical specs and another retailer backfills them) and a `data_quality_score` (0.0–1.0).
 
+**Package vs assembled.** Retailers that distinguish boxed-for-shipping weight from product weight populate `weight_assembled_lbs` + `weight_package_lbs` (and parallel `dimensions_assembled` + `dimensions_package`). Top-level `weight_lbs` / `dimensions` are the derived "best available" — assembled wins, package fills in, plain weight is the last resort. Retailers exposing only one weight populate `weight_lbs` and leave the explicit pair as `null`.
+
 | Field                    | Type     |
 | ------------------------ | -------- |
 | `identifier`             | string (required) |
