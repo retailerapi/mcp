@@ -8,16 +8,30 @@ interface LookupProductArgs {
   identifier?: unknown;
   identifier_type?: unknown;
   include_cross_retailer?: unknown;
+  include_seller_context?: unknown;
   retailer?: unknown;
+}
+
+interface SellerContext {
+  referral_fee_usd?: number | null;
+  wfs_fee_usd?: number | null;
+  restricted?: { flag: boolean; reason: string | null } | null;
+  wfs_eligibility?: { enabled: boolean; reason: string | null } | null;
 }
 
 interface CrossRetailerCell {
   retailer: string;
   status: 'ok' | 'indexing' | 'stale' | 'not_found' | 'blocked' | 'error';
-  price?: number;
-  url?: string;
-  in_stock?: boolean;
-  fetched_at?: string;
+  price?: number | null;
+  url?: string | null;
+  in_stock?: boolean | null;
+  unavailable?: boolean | null;
+  sold_tag?: string | null;
+  estimated_sales?: number | null;
+  is_best_seller?: boolean | null;
+  pack_count?: number | null;
+  hazmat?: boolean | null;
+  seller_context?: SellerContext | null;
 }
 
 interface RetailerLink {
@@ -41,14 +55,17 @@ interface UpstreamProduct {
   current_offers?: unknown[];
   num_offers?: number;
   retailer_links?: RetailerLink[];
-  cross_retailer?: CrossRetailerCell[];
+  cross_retailer?: Record<string, CrossRetailerCell>;
+  seller_context?: {
+    restricted?: { any: boolean; retailers: string[]; primary_reason: string | null } | null;
+  } | null;
   [k: string]: unknown;
 }
 
 export const lookupProduct: ToolDefinition = {
   name: 'lookup_product',
   description:
-    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or Walmart item_id. Returns title, brand, primary image, current Walmart price, number of offers, item_id, walmart_url, AND retailer_links — the list of other retailers (Amazon, eBay, Target, Best Buy, Lowe\'s, Home Depot) that carry this product, with a direct URL to each. Discovery is free; set include_cross_retailer=true to also pull live price/stock per retailer (+2 tokens). Cells may be marked status="indexing" on first lookup; subsequent calls (after a few seconds) typically return populated data.',
+    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or Walmart item_id. Base call (1 token) returns title, brand, image, current Walmart price, offers_count, item_id, walmart_url, retailer_links (other retailers carrying this product, URLs only), and cross_retailer.walmart with Bucket-1 facts (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat) plus computed marketplace fees (referral_fee_usd, wfs_fee_usd). Add include_cross_retailer=true (+2 tokens) for live price/stock per retailer. Add include_seller_context=true (+3 tokens) for live seller-side state (is_restricted, WFS eligibility) on Walmart/Amazon/eBay. Marketplace fees are FREE in base call (Keepa parity).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -66,7 +83,12 @@ export const lookupProduct: ToolDefinition = {
       include_cross_retailer: {
         type: 'boolean',
         description:
-          'Include current pricing from non-Walmart retailers (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot). Returns each retailer\'s status: "ok" (data current), "stale" (data older than retailer-specific TTL), "indexing" (no data yet — first request triggers a background fetch), "not_found" (retailer doesn\'t carry this product). Default: false.',
+          'Include current pricing + Bucket-1 facts from non-Walmart retailers (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot). Returns each retailer\'s status: "ok" (data current), "stale" (data older than retailer-specific TTL), "indexing" (no data yet — first request triggers a background fetch), "not_found" (retailer doesn\'t carry this product). +2 tokens. Default: false. Walmart is always present in cross_retailer regardless.',
+      },
+      include_seller_context: {
+        type: 'boolean',
+        description:
+          'Include live seller-side state under cross_retailer.<retailer>.seller_context.restricted and .wfs_eligibility, plus top-level seller_context.restricted aggregation. +3 tokens. Marketplace fees (referral_fee_usd, wfs_fee_usd) are already free in the base call — this flag adds the live-state fields (is_restricted, restriction reason, WFS eligibility) that require a richer upstream pull. Applies to marketplace retailers only (walmart, amazon, ebay).',
       },
       retailer: {
         type: 'string',
@@ -86,17 +108,17 @@ export const lookupProduct: ToolDefinition = {
     const id = args.identifier.trim();
     const idType = typeof args?.identifier_type === 'string' ? args.identifier_type : undefined;
     const includeCrossRetailer = args?.include_cross_retailer === true;
+    const includeSellerContext = args?.include_seller_context === true;
     const retailer = typeof args?.retailer === 'string' ? args.retailer.toLowerCase().trim() : undefined;
 
     const data = await client.get<UpstreamProduct>(`/products/${encodeURIComponent(id)}`, {
       format: idType,
-      include_history: 'false',
-      include_stats: 'false',
       include_cross_retailer: includeCrossRetailer ? 'true' : undefined,
+      include_seller_context: includeSellerContext ? 'true' : undefined,
       retailer,
     });
 
-    return summarizeProduct(data, id, client, includeCrossRetailer);
+    return summarizeProduct(data, id, client, includeCrossRetailer, includeSellerContext);
   },
 };
 
@@ -105,6 +127,7 @@ function summarizeProduct(
   queriedId: string,
   client: RetailerApiClient,
   includeCrossRetailer: boolean,
+  includeSellerContext: boolean,
 ): {
   item_id: string | undefined;
   title: string | undefined;
@@ -116,7 +139,8 @@ function summarizeProduct(
   walmart_url: string | undefined;
   queried_identifier: string;
   retailer_links?: RetailerLink[];
-  cross_retailer?: CrossRetailerCell[];
+  cross_retailer?: Record<string, CrossRetailerCell>;
+  seller_context?: { restricted?: { any: boolean; retailers: string[]; primary_reason: string | null } | null } | null;
 } {
   void client; // reserved — may use for follow-up calls in future
   const item_id =
@@ -157,7 +181,14 @@ function summarizeProduct(
             : undefined,
     queried_identifier: queriedId,
     retailer_links: Array.isArray(d.retailer_links) && d.retailer_links.length ? d.retailer_links : undefined,
-    cross_retailer: includeCrossRetailer && Array.isArray(d.cross_retailer) ? d.cross_retailer : undefined,
+    // cross_retailer is a map keyed by retailer slug. Walmart cell is always
+    // present (base-call data); other retailers populate only when the +2
+    // include_cross_retailer flag was set.
+    cross_retailer:
+      d.cross_retailer && typeof d.cross_retailer === 'object' && !Array.isArray(d.cross_retailer)
+        ? d.cross_retailer
+        : undefined,
+    seller_context: includeSellerContext && d.seller_context ? d.seller_context : undefined,
   };
 }
 

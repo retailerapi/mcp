@@ -16,18 +16,14 @@ import {
 } from './client.js';
 import type { ToolDefinition } from './tools/types.js';
 import { lookupProduct } from './tools/lookup-product.js';
-import { priceHistory } from './tools/price-history.js';
 import { getOffers } from './tools/get-offers.js';
 import { getSeller } from './tools/get-seller.js';
-import { getReviews } from './tools/get-reviews.js';
 import { PKG_NAME, PKG_VERSION } from './version.js';
 
 const TOOLS: ToolDefinition[] = [
   lookupProduct,
-  priceHistory,
   getOffers,
   getSeller,
-  getReviews,
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

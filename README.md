@@ -1,6 +1,6 @@
 # @retailerapi/mcp
 
-Model Context Protocol server for [retailerapi.com](https://retailerapi.com) — a unified product-data API covering major US retailers. Five tools your AI agent can call directly: product lookups, price history, offers, seller profiles, and reviews.
+Model Context Protocol server for [retailerapi.com](https://retailerapi.com) — a unified product-data API covering major US retailers. Three tools your AI agent can call directly: product lookups, live offers, and seller profiles.
 
 Works with **Claude Desktop**, **Claude Code**, **Cursor**, and any other MCP-compatible client over stdio.
 
@@ -71,30 +71,24 @@ The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). 
 
 ### `lookup_product`
 
-Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. Returns `retailer_links` — the list of other retailers (Amazon, eBay, Target, Best Buy, Lowe's, Home Depot) that carry the same product, with a direct URL to each — free for barcode lookups. Set `include_cross_retailer=true` to also pull live price/stock per retailer (+2 tokens).
+Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. **Base call (1 token)** returns: title, brand, image, current price, identifiers, weight, dimensions, MSRP, description, categories, full price history, aggregated stats, `retailer_links` (free 'where to find it'), and `cross_retailer.walmart` with **Bucket-1 facts** (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat) plus **computed marketplace fees** (referral_fee_usd, wfs_fee_usd). Fees are FREE in base call — Keepa parity.
 
-Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field and a `data_quality_score` (0.0–1.0). A score below 1.0 means at least one retailer described a different product and was excluded from the merge; `_meta.disagreements` lists each excluded retailer's title for debugging. Safe to ignore for most uses.
+Set `include_cross_retailer=true` to fold in Amazon, eBay, Lowe's, Target, Best Buy, Home Depot cells (+2 tokens). Set `include_seller_context=true` to add live seller-side state (is_restricted, WFS eligibility) on marketplace retailers (+3 tokens).
 
-| Field             | Type     |
-| ----------------- | -------- |
-| `identifier`      | string (required) |
-| `identifier_type` | `"UPC" \| "EAN" \| "ISBN" \| "item_id"` (optional — auto-detect if omitted) |
-| `include_cross_retailer` | boolean (optional — default `false`) |
+Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field (including `weight_lbs_source` and `dimensions_source` — useful when Walmart's catalog is missing physical specs and Amazon backfills them) and a `data_quality_score` (0.0–1.0).
+
+| Field                    | Type     |
+| ------------------------ | -------- |
+| `identifier`             | string (required) |
+| `identifier_type`        | `"UPC" \| "EAN" \| "ISBN" \| "GTIN" \| "ASIN" \| "item_id"` (optional — auto-detect if omitted) |
+| `include_cross_retailer` | boolean (optional — default `false`) — +2 tokens |
+| `include_seller_context` | boolean (optional — default `false`) — +3 tokens |
+| `retailer`               | string (optional) — force a primary retailer slug |
 
 **Example prompts:**
-- "Look up UPC 045496590161 and tell me the brand and price."
-- "Find UPC 194629116676 across every retailer you can — who has it cheapest?"
-
-### `price_history`
-
-Time series of `{observed_at, price, in_stock}` observations for a product.
-
-| Field     | Type   |
-| --------- | ------ |
-| `item_id` | string (required) |
-| `range`   | `"7d" \| "30d" \| "90d" \| "1y" \| "all"` (default `"30d"`) |
-
-**Example prompt:** "Show me the 90-day price history for item 1689065034."
+- "Look up UPC 045496590161 — what's the brand, price, and Walmart referral fee?"
+- "Find UPC 194629116676 across every retailer — who has it cheapest?"
+- "What's the WFS fee on this product? Are there any seller restrictions on Amazon?"
 
 ### `get_offers`
 
@@ -115,18 +109,6 @@ Marketplace seller profile by `seller_id`: name, total active listings, rating, 
 | `seller_id` | string (required) |
 
 **Example prompt:** "Tell me about seller F55CDC31AB754BB68FE0B39041159D63."
-
-### `get_reviews`
-
-Review summary plus top recent reviews for a product. Optional date range.
-
-| Field        | Type   |
-| ------------ | ------ |
-| `item_id`    | string (required) |
-| `start_date` | `YYYY-MM-DD` (optional) |
-| `end_date`   | `YYYY-MM-DD` (optional) |
-
-**Example prompt:** "Summarize what customers complain about in reviews of item 1689065034."
 
 ## Errors
 
