@@ -4,7 +4,7 @@ Model Context Protocol server for [retailerapi.com](https://retailerapi.com) —
 
 Works with **Claude Desktop**, **Claude Code**, **Cursor**, and any other MCP-compatible client over stdio.
 
-Covered retailers: Walmart (deepest catalog today), Amazon, eBay, Target, Best Buy, Lowe's, Home Depot. Set `include_cross_retailer=true` on a product lookup to fold in cross-retailer pricing from any of these.
+Covered retailers: Walmart, Amazon, eBay, Target, Best Buy, Lowe's, Home Depot. Set `include_cross_retailer=true` on a product lookup to surface cached cells for every retailer we have for that UPC.
 
 ## Quick start
 
@@ -71,19 +71,22 @@ The process speaks MCP over stdio (newline-delimited JSON-RPC on stdin/stdout). 
 
 ### `lookup_product`
 
-Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / Walmart `item_id`) into a normalized product summary. **Base call (1 token)** returns: title, brand, image, current price, identifiers, weight, dimensions, MSRP, description, categories, full price history, aggregated stats, `retailer_links` (free 'where to find it'), and `cross_retailer.walmart` with **Bucket-1 facts** (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat) plus **computed marketplace fees** (referral_fee_usd, wfs_fee_usd). Fees are FREE in base call — Keepa parity.
+Resolve any identifier (UPC / EAN / ISBN / GTIN / Amazon ASIN / retailer `item_id`) into a normalized product summary. **Base call (1 token)** returns: title, brand, image, current price, identifiers, weight, dimensions, MSRP, description, categories, full price history, aggregated stats, `retailer_links` (free 'where to find it'), **Bucket-1 facts** (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat), and **computed marketplace fees** (referral_fee_usd, wfs_fee_usd). Fees are FREE in base call — Keepa parity.
 
-Set `include_cross_retailer=true` to fold in Amazon, eBay, Lowe's, Target, Best Buy, Home Depot cells (+2 tokens). Set `include_seller_context=true` to add live seller-side state (is_restricted, WFS eligibility) on marketplace retailers (+3 tokens).
+Set `include_cross_retailer=true` to add the `cross_retailer` block — a map keyed by retailer slug of cached per-retailer cells (price, in_stock, Bucket-1 fields) for every retailer we have for this UPC (+2 tokens). Read-only over our cache. Set `include_seller_context=true` to add live seller-side state (is_restricted, WFS eligibility) on marketplace retailers (+3 tokens).
 
-Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field (including `weight_lbs_source` and `dimensions_source` — useful when Walmart's catalog is missing physical specs and Amazon backfills them) and a `data_quality_score` (0.0–1.0).
+To force a fresh scrape of a specific retailer (bypassing cache), call with `retailer=<slug>` and `force_refresh=true`. This is the only way to force fresh data from the API.
+
+Barcode lookups also return a diagnostic `_meta` block with the source retailer for each top-level field (including `weight_lbs_source` and `dimensions_source` — useful when one retailer's catalog is missing physical specs and another retailer backfills them) and a `data_quality_score` (0.0–1.0).
 
 | Field                    | Type     |
 | ------------------------ | -------- |
 | `identifier`             | string (required) |
 | `identifier_type`        | `"UPC" \| "EAN" \| "ISBN" \| "GTIN" \| "ASIN" \| "item_id"` (optional — auto-detect if omitted) |
-| `include_cross_retailer` | boolean (optional — default `false`) — +2 tokens |
+| `include_cross_retailer` | boolean (optional — default `false`) — +2 tokens, read-only |
 | `include_seller_context` | boolean (optional — default `false`) — +3 tokens |
-| `retailer`               | string (optional) — force a primary retailer slug |
+| `retailer`               | string (optional) — anchor to a specific retailer slug |
+| `force_refresh`          | boolean (optional — default `false`) — only valid with `retailer`; bypass cache + force fresh scrape |
 
 **Example prompts:**
 - "Look up UPC 045496590161 — what's the brand, price, and Walmart referral fee?"

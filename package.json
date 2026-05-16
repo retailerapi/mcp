@@ -1,7 +1,7 @@
 {
   "name": "@retailerapi/mcp",
   "version": "0.3.0",
-  "description": "Model Context Protocol server for retailerapi.com — unified product data across major US retailers (Walmart, Amazon, eBay, Target, Best Buy, Lowe's, Home Depot). Three tools for AI agents: product lookup (with Bucket-1 facts + computed marketplace fees + canonical-merged weight/dims), live offers, and seller profiles. Works with Claude Desktop, Claude Code, Cursor.",
+  "description": "Model Context Protocol server for retailerapi.com — unified product data across major US retailers (Walmart, Amazon, eBay, Target, Best Buy, Lowe's, Home Depot). Three tools for AI agents: product lookup (with Bucket-1 facts + computed marketplace fees + weight/dims merged from the best retailer source), live offers, and seller profiles. Works with Claude Desktop, Claude Code, Cursor.",
   "license": "MIT",
   "author": "retailerapi",
   "homepage": "https://retailerapi.com",

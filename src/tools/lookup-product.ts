@@ -10,6 +10,7 @@ interface LookupProductArgs {
   include_cross_retailer?: unknown;
   include_seller_context?: unknown;
   retailer?: unknown;
+  force_refresh?: unknown;
 }
 
 interface SellerContext {
@@ -65,7 +66,7 @@ interface UpstreamProduct {
 export const lookupProduct: ToolDefinition = {
   name: 'lookup_product',
   description:
-    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or Walmart item_id. Base call (1 token) returns title, brand, image, current Walmart price, offers_count, item_id, walmart_url, retailer_links (other retailers carrying this product, URLs only), and cross_retailer.walmart with Bucket-1 facts (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat) plus computed marketplace fees (referral_fee_usd, wfs_fee_usd). Add include_cross_retailer=true (+2 tokens) for live price/stock per retailer. Add include_seller_context=true (+3 tokens) for live seller-side state (is_restricted, WFS eligibility) on Walmart/Amazon/eBay. Marketplace fees are FREE in base call (Keepa parity).',
+    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or retailer item_id. Base call (1 token) returns title, brand, image, current price, offers_count, identifiers, retailer_links (other retailers carrying this product, URLs only), Bucket-1 facts (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat), and computed marketplace fees (referral_fee_usd, wfs_fee_usd). Add include_cross_retailer=true (+2 tokens) for the cross_retailer block — cached per-retailer cells, read-only. Add include_seller_context=true (+3 tokens) for live seller-side state (is_restricted, WFS eligibility) on marketplace retailers. To force fresh data for a specific retailer, call with retailer=<slug> and force_refresh=true. Marketplace fees are FREE in base call (Keepa parity).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -83,18 +84,23 @@ export const lookupProduct: ToolDefinition = {
       include_cross_retailer: {
         type: 'boolean',
         description:
-          'Include current pricing + Bucket-1 facts from non-Walmart retailers (Amazon, eBay, Lowe\'s, Target, Best Buy, Home Depot). Returns each retailer\'s status: "ok" (data current), "stale" (data older than retailer-specific TTL), "indexing" (no data yet — first request triggers a background fetch), "not_found" (retailer doesn\'t carry this product). +2 tokens. Default: false. Walmart is always present in cross_retailer regardless.',
+          'Include the cross_retailer block — a map keyed by retailer slug of cached per-retailer cells (price, in_stock, Bucket-1 fields) for every retailer we have for this UPC. Each cell has a status: "ok" (data current), "stale" (older than retailer TTL), "indexing" (no data yet — background fetch will populate within ~30s), "not_found" (retailer doesn\'t carry this product). +2 tokens. READ-ONLY: never triggers fresh scrapes. To force a fresh scrape of a specific retailer, call with retailer=<slug> and force_refresh=true.',
       },
       include_seller_context: {
         type: 'boolean',
         description:
-          'Include live seller-side state under cross_retailer.<retailer>.seller_context.restricted and .wfs_eligibility, plus top-level seller_context.restricted aggregation. +3 tokens. Marketplace fees (referral_fee_usd, wfs_fee_usd) are already free in the base call — this flag adds the live-state fields (is_restricted, restriction reason, WFS eligibility) that require a richer upstream pull. Applies to marketplace retailers only (walmart, amazon, ebay).',
+          'Include live seller-side state under cross_retailer.<retailer>.seller_context.restricted and .wfs_eligibility, plus top-level seller_context.restricted aggregation. +3 tokens. Marketplace fees (referral_fee_usd, wfs_fee_usd) are already free in the base call — this flag adds the live-state fields (is_restricted, restriction reason, WFS eligibility) that require a richer upstream pull. Applies to marketplace retailers only.',
       },
       retailer: {
         type: 'string',
         pattern: '^[a-z0-9]{2,30}$',
         description:
-          "Force a specific retailer's data as the primary source. Slug format: lowercase alphanumeric only, 2-30 chars, no TLD or separators (homedepot not 'home-depot' or 'homedepot.com'). Vetted retailers (walmart, amazon, ebay, lowes, target, bestbuy, homedepot) have custom parsers; any other slug routes through a self-extending WebFetch waterfall against <slug>.com. Walmart item_id is rejected with non-walmart retailers — use UPC, EAN, ISBN, GTIN, or ASIN. Cost: 1 token flat. 404 codes: not_found (retailer doesn't carry) | retailer_unavailable (waterfall exhausted) | retailer_pending (bot-blocked, extension coming soon).",
+          "Anchor the response to a specific retailer's data. Slug format: lowercase alphanumeric only, 2-30 chars, no TLD or separators (homedepot not 'home-depot' or 'homedepot.com'). Vetted retailers have custom parsers; any other slug routes through a self-extending WebFetch waterfall against <slug>.com. Cost: 1 token flat. 404 codes: not_found (retailer doesn't carry) | retailer_unavailable (waterfall exhausted) | retailer_pending (bot-blocked, extension coming soon).",
+      },
+      force_refresh: {
+        type: 'boolean',
+        description:
+          "Bypass cache and force a fresh scrape of the retailer specified by `retailer`. Only valid when `retailer` is also set — passing force_refresh alone returns 400. This is the ONLY way to force fresh data from the API. No additional token cost beyond the retailer surcharge.",
       },
     },
     required: ['identifier'],
@@ -110,12 +116,14 @@ export const lookupProduct: ToolDefinition = {
     const includeCrossRetailer = args?.include_cross_retailer === true;
     const includeSellerContext = args?.include_seller_context === true;
     const retailer = typeof args?.retailer === 'string' ? args.retailer.toLowerCase().trim() : undefined;
+    const forceRefresh = args?.force_refresh === true;
 
     const data = await client.get<UpstreamProduct>(`/products/${encodeURIComponent(id)}`, {
       format: idType,
       include_cross_retailer: includeCrossRetailer ? 'true' : undefined,
       include_seller_context: includeSellerContext ? 'true' : undefined,
       retailer,
+      force_refresh: forceRefresh && retailer ? 'true' : undefined,
     });
 
     return summarizeProduct(data, id, client, includeCrossRetailer, includeSellerContext);
@@ -181,9 +189,10 @@ function summarizeProduct(
             : undefined,
     queried_identifier: queriedId,
     retailer_links: Array.isArray(d.retailer_links) && d.retailer_links.length ? d.retailer_links : undefined,
-    // cross_retailer is a map keyed by retailer slug. Walmart cell is always
-    // present (base-call data); other retailers populate only when the +2
-    // include_cross_retailer flag was set.
+    // cross_retailer is a map keyed by retailer slug. Only present when the
+    // caller set include_cross_retailer=true (+2 tokens). Read-only over our
+    // cache — to force a fresh scrape of a specific retailer, use
+    // retailer=<slug> + force_refresh=true.
     cross_retailer:
       d.cross_retailer && typeof d.cross_retailer === 'object' && !Array.isArray(d.cross_retailer)
         ? d.cross_retailer
