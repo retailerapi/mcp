@@ -1,6 +1,6 @@
 # @retailerapi/mcp
 
-Model Context Protocol server for [retailerapi.com](https://retailerapi.com) — a unified product-data API covering major US retailers. Three tools your AI agent can call directly: product lookups, live offers, and seller profiles.
+Model Context Protocol server for [retailerapi.com](https://retailerapi.com) — a unified product-data API covering major US retailers. Two tools your AI agent can call directly: product lookups and live offers.
 
 Works with **Claude Desktop**, **Claude Code**, **Cursor**, and any other MCP-compatible client over stdio.
 
@@ -105,16 +105,6 @@ List current marketplace sellers on a product, including price, in-stock state, 
 
 **Example prompt:** "Who has the buy box on item 1689065034 and what's the next-cheapest seller?"
 
-### `get_seller`
-
-Marketplace seller profile by `seller_id`: name, total active listings, rating, performance metrics.
-
-| Field       | Type   |
-| ----------- | ------ |
-| `seller_id` | string (required) |
-
-**Example prompt:** "Tell me about seller F55CDC31AB754BB68FE0B39041159D63."
-
 ## Errors
 
 Tool calls return structured JSON errors instead of crashing the agent:
@@ -122,7 +112,7 @@ Tool calls return structured JSON errors instead of crashing the agent:
 | Status   | Error code        | Meaning                                                              |
 | -------- | ----------------- | -------------------------------------------------------------------- |
 | 401, 403 | `unauthorized`    | API key invalid or missing scope. Check `RETAILERAPI_KEY`.       |
-| 404      | `not_found`       | Product, seller, or item_id not found.                               |
+| 404      | `not_found`       | Product or item_id not found.                                        |
 | 429      | `rate_limited`    | Quota or burst limit hit. Includes `retry_after_seconds`.            |
 | 5xx      | `upstream_error`  | Backend issue. Retry shortly.                                        |
 | —        | `missing_api_key` | `RETAILERAPI_KEY` env var not set. Pointer to docs included.     |

@@ -17,13 +17,11 @@ import {
 import type { ToolDefinition } from './tools/types.js';
 import { lookupProduct } from './tools/lookup-product.js';
 import { getOffers } from './tools/get-offers.js';
-import { getSeller } from './tools/get-seller.js';
 import { PKG_NAME, PKG_VERSION } from './version.js';
 
 const TOOLS: ToolDefinition[] = [
   lookupProduct,
   getOffers,
-  getSeller,
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
