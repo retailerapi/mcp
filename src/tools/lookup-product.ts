@@ -66,13 +66,13 @@ interface UpstreamProduct {
 export const lookupProduct: ToolDefinition = {
   name: 'lookup_product',
   description:
-    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, or retailer item_id. Base call (1 token) returns title, brand, image, current price, offers_count, identifiers, retailer_links (other retailers carrying this product, URLs only), Bucket-1 facts (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat), and computed marketplace fees (referral_fee_usd, wfs_fee_usd). Add include_cross_retailer=true (+2 tokens) for the cross_retailer block — cached per-retailer cells, read-only. Add include_seller_context=true (+3 tokens) for live seller-side state (is_restricted, WFS eligibility) on marketplace retailers. To force fresh data for a specific retailer, call with retailer=<slug> and force_refresh=true. Marketplace fees are FREE in base call (Keepa parity).',
+    'Look up a product by UPC, EAN, ISBN, GTIN, ASIN, Walmart item_id, OR any retailer PDP URL. URL submission works on: the 7 vetted retailers with dedicated parsers (Amazon /dp/, Walmart /ip/, Target /p/, Home Depot /p/, Lowe\'s /pd/, Best Buy /product/, eBay /itm/), every Shopify-hosted store globally via the public /products/<handle>.json endpoint, and any other retailer that ships Product JSON-LD or OpenGraph product tags in its initial HTML. Base call (1 token) returns title, brand, image, current price, offers_count, identifiers, retailer_links (other retailers carrying this product, URLs only), Bucket-1 facts (sold_tag, estimated_sales, is_best_seller, pack_count, hazmat), and computed marketplace fees (referral_fee_usd, wfs_fee_usd). Add include_cross_retailer=true (+2 tokens) for the cross_retailer block — cached per-retailer cells, read-only. Add include_seller_context=true (+3 tokens) for live seller-side state (is_restricted, WFS eligibility) on marketplace retailers. To force fresh data for a specific retailer, call with retailer=<slug> and force_refresh=true. Marketplace fees are FREE in base call (Keepa parity).',
   inputSchema: {
     type: 'object',
     properties: {
       identifier: {
         type: 'string',
-        description: 'The product identifier — UPC, EAN, ISBN, GTIN, Amazon ASIN (B0XXXXXXXX), or Walmart item_id.',
+        description: 'The product identifier — UPC, EAN, ISBN, GTIN, Amazon ASIN (B0XXXXXXXX), Walmart item_id, OR any retailer PDP URL. URLs work on all 7 vetted retailers (Amazon, Walmart, Target, Home Depot, Lowe\'s, Best Buy, eBay), every Shopify store (via /products/<handle>.json), and any other storefront with Product JSON-LD or OpenGraph product tags. Cost is 1 token regardless of input type.',
         minLength: 1,
       },
       identifier_type: {
